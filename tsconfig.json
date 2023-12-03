@@ -1,9 +1,10 @@
 {
-	"compilerOptions": {
-		"module": "commonjs",
-		"target": "es5"
-	},
-	"files": [
-		"script.ts"
-	]
+  "compilerOptions": {
+    "target": "es2020",
+    "module": "commonjs",
+    "strict": true
+  },
+  "files": [
+    "script.ts"
+  ]
 }

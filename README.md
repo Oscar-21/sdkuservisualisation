@@ -1,5 +1,12 @@
 # SDK User Visualisation
 ## Setup
+
+**This is a fork of simo101/sdkuservisualisation.** 
+
+- This updates the script to work with current Mendix Studio Projects and Sdks.
+- tsd is now deprecated. The package.json now included all typings needed for the project as dev dependencies.
+- There were some things that were deprecated from the Mendix Modeler, and thus the SDK. This resolves those issues.
+
 To set up and use the sdk you need to have node js installed on your machine. You will need to have also installed typescript and tsd.
 The following command will install typescript and tsd globally for you:
 
