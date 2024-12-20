@@ -3,3 +3,6 @@ typings/
 script.js
 *nbproject
 .vscode/
+.project
+.classpath
+.idea
