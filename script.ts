@@ -1,4 +1,4 @@
-import { MendixPlatformClient } from "mendixplatformsdk";
+import {MendixPlatformClient} from "mendixplatformsdk";
 import {
   IModel,
   domainmodels,
@@ -16,13 +16,18 @@ import {
   ByNameReferenceProperty,
   ByNameReferenceListProperty,
   LocalByNameReferenceProperty,
-  PrimitiveProperty, StructuralChildProperty, StructuralChildListProperty, PrimitiveListProperty
+  PrimitiveProperty,
+  StructuralChildProperty,
+  StructuralChildListProperty,
+  PrimitiveListProperty,
+  JavaScriptSerializer,
+  IAbstractUnit
 } from "mendixmodelsdk";
 import * as fs from "fs";
 import NativeNavigationProfile = navigation.NativeNavigationProfile;
 import NavigationProfile = navigation.NavigationProfile;
 
-(async function doThing() {
+(async function runApplication(): Promise<void> {
 
   try {
     const ws = fs.createWriteStream('./web/mendix.json');
@@ -37,18 +42,17 @@ import NavigationProfile = navigation.NavigationProfile;
       parent?: null | Record<string, unknown>
     } = {};
 
-    const appId = "{appId}";
-    const branchName = "{branch}"
+    const appId = "";
+    const branchName = ""
     const client = new MendixPlatformClient();
-
-
     /*
      * App TO ANALYZE
      */
     const app = client.getApp(appId);
     const workingCopy = await app.createTemporaryWorkingCopy(branchName);
     const model = await workingCopy.openModel();
-    const foo = await loadFoo(model);
+    //loadProject(model);
+    await loadMicroflows(model);
     return;
     const projectSecurity = await loadProjectSecurity(model);
     if (projectSecurity) {
@@ -73,6 +77,7 @@ import NavigationProfile = navigation.NavigationProfile;
     function pickNavigationDocument(model: IModel): navigation.INavigationDocument {
       return model.allNavigationDocuments()[0];
     }
+
     /**
      * This function processes a given user navigation
      */
@@ -108,6 +113,7 @@ import NavigationProfile = navigation.NavigationProfile;
         }
       }
     }
+
     /**
      * This function processes the other users navigation
      */
@@ -118,6 +124,7 @@ import NavigationProfile = navigation.NavigationProfile;
         await Promise.all(items.map(async item => await processItem(item, element, userRole)));
       }
     }
+
     /**
      * This function processes a menu item.
      */
@@ -137,60 +144,66 @@ import NavigationProfile = navigation.NavigationProfile;
         }
       }
     }
-    async function loadBar(model: IModel): Promise<undefined> {
-      const microflow = model?.allMicroflows()?.find(mf => mf.name === "MyMicroflow");
+    function hasNewProperty(stringSet: Set<string>, valuesToAdd: string[]): boolean {
+      for (const value of valuesToAdd) {
+        if (!stringSet.has(value)) {
+          return true;
+        }
+      }
+      return false;
+    }
 
-
-      if (microflow) {
-        console.log(`Found the microflow with name: ${microflow.name}`);
-        const mf = await microflow.load();
-        // Define the qualified name for the Java action from the marketplace module
-        const javaActionQualifiedName = "MyModule.MyMarketplaceJavaAction"; // Replace with the actual qualified name
-        // Create a new Java action call
-        const javaActionCall = microflows.JavaActionCallAction.create(model);
-        javaActionCall.javaActionQualifiedName = javaActionQualifiedName;
+    async function loadMicroflows(model: IModel): Promise<undefined> {
+      //const microflow = model?.allMicroflows()?.find(mf => mf.name === "MyMicroflow");
+      const microflows = await Promise.all(
+        model?.allMicroflows()?.map(
+          async mf => mf.isLoaded ? mf : await mf.load() && mf
+        )
+      );
+      if (!!microflows.length) {
+        const firstMicroflow = 0;
+        const lastMicroflow = microflows.length - 1;
+        const microflowProperties = new Set<string>();
+        const notAllMicroflowsHaveTheSameProperties = microflows.some((mf, i) => {
+          if (i === firstMicroflow) {
+            mf.allProperties().forEach(p => microflowProperties.add(p.name));
+          } else {
+            return hasNewProperty(microflowProperties, mf.allProperties().map(p => p.name));
+          }
+        });
+        if (notAllMicroflowsHaveTheSameProperties) {
+          console.log("Microflows have different properties");
+        } else {
+          console.log("Microflows have the same properties");
+        }
+        microflows.forEach((mf, i) => {
+          serializeModel(mf?.qualifiedName ?? createName(), mf);
+          // if (i === lastMicroflow) {
+          //   const properties = mf.allProperties();
+          //   displayProperties(properties);
+          // }
+          console.log(`Found the microflow with qualified name: ${mf.qualifiedName}`);
+        });
       } else {
-        console.log("Microflow with the specified name 'MyMicroflow' was not found.");
+        console.log("Microflows were not found in the application");
       }
     }
+
     /**
-     * This function loads the foo.
+     * This function loads the Project.
      */
-    async function loadFoo(model: IModel): Promise<undefined> {
+    async function loadProject(model: IModel): Promise<undefined> {
       try {
         const projectList = model.allProjects();
-        console.log("projectList");
         const project: projects.IProject = projectList[0];
         if (project) {
           const properties: AbstractProperty<any, any>[] = project.allProperties();
           if (Array.isArray(properties)) {
-            properties.forEach(
-              prop => {
-                if (prop instanceof ByIdReferenceProperty) {
-                  console.log(prop.name);
-                } else if (prop instanceof ByNameReferenceProperty) {
-                  console.log(prop.name);
-                } else if (prop instanceof ByNameReferenceListProperty) {
-                  console.log(prop.name);
-                } else if (prop instanceof LocalByNameReferenceProperty) {
-                  console.log(prop.name);
-                } else if (prop instanceof PartListProperty) {
-                  console.log(prop.name);
-                } else if (prop instanceof PartProperty) {
-                  console.log(prop.name);
-                } else if (prop instanceof PrimitiveProperty) {
-                  console.log(prop.name);
-                } else if (prop instanceof StructuralChildProperty) {
-                  console.log(prop.name);
-                } else if (prop instanceof StructuralChildListProperty) {
-                  console.log(prop.name);
-                } else if (prop instanceof PrimitiveListProperty) {
-                }
-              }
-            );
+           displayProperties(properties);
           }
         }
-      } catch (e) {
+      } catch (e: unknown) {
+        console.log(`error: ${e}`)
       }
     }
 
@@ -213,6 +226,7 @@ import NavigationProfile = navigation.NavigationProfile;
         console.log(`Failed to load security`);
       }
     }
+
     /**
      * This function loads all the users navigation
      */
@@ -222,6 +236,7 @@ import NavigationProfile = navigation.NavigationProfile;
       jsonObj[`parent`] = null;
       return Promise.all(userRoles.map(async ur => await processUsersNavigation(ur)));
     }
+
     function getAllUserRoles(projectSecurity: security.ProjectSecurity | undefined): security.UserRole[] {
       if (projectSecurity) {
         return projectSecurity.userRoles;
@@ -229,12 +244,13 @@ import NavigationProfile = navigation.NavigationProfile;
         return [];
       }
     }
+
     /**
      * This function processes the navigation for a given user.
      */
     async function processUsersNavigation(role: security.UserRole): Promise<void | undefined> {
       const nav = role.model.allNavigationDocuments()[0];
-      const child = { name: role.name, children: [], parent: "User Roles" };
+      const child = {name: role.name, children: [], parent: "User Roles"};
       jsonObj[`children`]?.push(child);
       console.log(`Processing user navigation for: ${role.name}`);
       if (nav != null) {
@@ -262,7 +278,7 @@ import NavigationProfile = navigation.NavigationProfile;
      */
     async function processStructures(element: any, page: pages.Page, userRole: security.UserRole, calledFromMicroflow: boolean): Promise<void | undefined> {
       const structures = getStructures(page);
-      const child = { name: page.name, children: [], parent: element.name + "," + element.parent };
+      const child = {name: page.name, children: [], parent: element.name + "," + element.parent};
       if (page) {
         if (calledFromMicroflow) {
           if (!checkIfInElement(page.name, element)) {
@@ -283,6 +299,7 @@ import NavigationProfile = navigation.NavigationProfile;
         }
       }
     }
+
     /**
      * This function traverses a page element
      */
@@ -299,6 +316,7 @@ import NavigationProfile = navigation.NavigationProfile;
         }
       }
     }
+
     /**
      * This Function processes the listview structure.
      */
@@ -386,6 +404,7 @@ import NavigationProfile = navigation.NavigationProfile;
         }
       }
     }
+
     /**
      * This function traverses all the microflow actions that are passed to it and returns once all actions are processed.
      */
@@ -394,6 +413,7 @@ import NavigationProfile = navigation.NavigationProfile;
         actions.map(async act => await processAction(act, element, userRole))
       );
     }
+
     /**
      * This function checks what the type of microflow action is either a show page, show homepage or microflow call. Then processes accordingly.
      */
@@ -407,9 +427,8 @@ import NavigationProfile = navigation.NavigationProfile;
               const pg = await action.pageSettings.page.load();
               await processStructures(element, pg, userRole, true);
             }
-          }
-          else if (action instanceof microflows.ShowHomePageAction) {
-            const child = { name: "ShowHomepage", children: [], parent: element.name + "," + element.parent };
+          } else if (action instanceof microflows.ShowHomePageAction) {
+            const child = {name: "ShowHomepage", children: [], parent: element.name + "," + element.parent};
             element["children"].push(child);
           } else if (action instanceof microflows.MicroflowCallAction) {
             console.log(`Microflow action to open microflow ${action?.microflowCall?.microflow?.name}`);
@@ -421,6 +440,7 @@ import NavigationProfile = navigation.NavigationProfile;
         }
       }
     }
+
     /**
      * This function traverses a microflow to find all actions that either open up a page or sub microflow
      */
@@ -428,7 +448,7 @@ import NavigationProfile = navigation.NavigationProfile;
       if (checkElementSecurity(microflow, userRole)) {
         console.log(`Traversing Microflow for: ${microflow.name}`);
         if (!checkIfInElement(microflow.name, element)) {
-          const child = { name: microflow.name, children: [], parent: element.name + + "," + element.parent };
+          const child = {name: microflow.name, children: [], parent: element.name + +"," + element.parent};
           element["children"].push(child);
           await traverseMicroflowActions(microflow.objectCollection.objects.filter(o => o instanceof microflows.ActionActivity), child, userRole);
         }
@@ -538,9 +558,78 @@ import NavigationProfile = navigation.NavigationProfile;
     }
     return (navProfiles.find(profile => profile instanceof NavigationProfile)) as NavigationProfile;
   }
+
+  /**
+   * This function displays all properties
+   */
+  function displayProperties(properties: AbstractProperty<any, any>[]) {
+    try {
+      properties.forEach(
+        prop => {
+          if (prop instanceof ByIdReferenceProperty) {
+            console.log("ByIdReferenceProperty: " + prop.name);
+          } else if (prop instanceof ByNameReferenceProperty) {
+            console.log("ByNameReferenceProperty: " + prop.name);
+          } else if (prop instanceof ByNameReferenceListProperty) {
+            console.log("ByNameReferenceListProperty " + prop.name);
+          } else if (prop instanceof LocalByNameReferenceProperty) {
+            console.log("LocalByNameReferenceProperty " + prop.name);
+          } else if (prop instanceof PartListProperty) {
+            console.log("PartListProperty " + prop.name);
+          } else if (prop instanceof PartProperty) {
+            console.log("PartProperty " + prop.name);
+          } else if (prop instanceof PrimitiveProperty) {
+            console.log("PrimitiveProperty " + prop.name);
+          } else if (prop instanceof StructuralChildProperty) {
+            console.log("StructuralChildProperty " + prop.name);
+          } else if (prop instanceof StructuralChildListProperty) {
+            console.log("StructuralChildListProperty " + prop.name);
+          } else if (prop instanceof PrimitiveListProperty) {
+            console.log("PrimitiveListProperty " + prop.name);
+          }
+        });
+    } catch (e: unknown) {
+      console.log(`error: ${e}`)
+    }
+  }
+
+  function getPropertyNames(properties: AbstractProperty<any, any>[]): Set<string> {
+    const propertyNames: Set<string> = new Set();
+    try {
+      properties.forEach(prop => propertyNames.add(prop.name));
+      return propertyNames;
+    } catch (e: unknown) {
+      console.log(`error: ${e}`)
+    }
+    return propertyNames;
+  }
+
+  function serializeModel(name: string, unit: IAbstractUnit) {
+    // Redirect generated code to a file.
+    fs.writeFile(
+      `./${name}-autogenerated.js`,
+      JavaScriptSerializer.serializeToJs(unit),
+      (err) => {
+        if (err) {
+          console.error(`Exception while writing to a file. ${err}`);
+        }
+      }
+    );
+  }
+
+  function createName() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < 8; i++) {
+      const randomIndex = Math.floor(Math.random() * chars.length);
+      result += chars[randomIndex];
+    }
+    return result;
+  }
+
   function zoo(model: IModel) {
     var startEvent1 = microflows.StartEvent.create(model);
-    startEvent1.relativeMiddlePoint = { "x": 145, "y": 190 };
-    startEvent1.size = { "width": 20, "height": 20 };
+    startEvent1.relativeMiddlePoint = {"x": 145, "y": 190};
+    startEvent1.size = {"width": 20, "height": 20};
   }
 })();

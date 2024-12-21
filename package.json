@@ -23,7 +23,7 @@
   "devDependencies": {
     "@types/connect": "^3.4.38",
     "@types/eventsource": "^1.1.15",
-    "@types/node": "^22.10.0",
+    "@types/node": "^20.17.10",
     "@types/openurl": "^1.0.3",
     "@types/serve-static": "^1.15.5",
     "@types/when": "^2.4.41",
